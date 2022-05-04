@@ -2,6 +2,8 @@ const express = require('express');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const http = require('http');
+const fs = require('fs');
 
 const Game = require('./models/gameModel');
 
@@ -56,9 +58,9 @@ app.post("/games/:id/reviews",(req,res)=>{
     if(Number(req.body.rating) <= 5 && Number(req.body.rating) >= 0) {
         Game.findById(req.params.id).then(game => {
             if(game){
-                number_of_reviews = game["number_of_reviews"] || 0;
+                number_of_reviews = game["reviews"].length || 0;
                 rating = game["rating"] || 0;
-                total_rating = game["total_rating"] || 0;
+                total_rating = game["reviews"].reduce((partialSum, review) => partialSum + Number(review.rating),0);
                 game["reviews"].push({
                     //user_id: req.body.user_id,
                     user_id: req.header("userId"),
@@ -66,12 +68,10 @@ app.post("/games/:id/reviews",(req,res)=>{
                     desc: req.body.desc
                 });
                 // Updating number of reviews and rating --------- TODO: REVIEW THIS
-                total_rating += req.body.rating;
+                total_rating += Number(req.body.rating);
                 number_of_reviews += 1;
                 rating = total_rating/number_of_reviews;
                 game["rating"] = rating;
-                game["total_rating"] = total_rating;
-                game["number_of_reviews"] = number_of_reviews;
                 // ----------------------
                 game.save().then(()=>res.json({success:true})).catch(err=>{console.log(err);res.json({success:false})})
             }else{
@@ -80,17 +80,28 @@ app.post("/games/:id/reviews",(req,res)=>{
         }).catch(err=>console.log(err));
     }else{
         res.json({success: false, message: "rating out of bounds"})
-    }
-    
+    }  
 })
 
 app.post("/games", (req,res)=>{
     // Add game
     let newGame = new Game({
         name: req.body.name,
-        rating: req.body.rating
+        image: req.body.image
     });
-    newGame.save().then(()=>res.json({success:true})).catch(res.json({success:false}))
+
+    newGame.save().then((saved)=>{
+        res.json({success:true});
+        const file = fs.createWriteStream("game_poster/poster_"+saved._id+".jpg");
+        const request = http.get(saved.image, function(response) {
+            response.pipe(file);
+
+            file.on("finish", () => {
+                file.close();
+                console.log("Retrieved poster for new game");
+            });
+        });
+    }).catch(err=>{console.log(err);res.json({success:false})})
 });
 
 app.delete("/games/:id", (req,res)=>{
