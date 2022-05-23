@@ -22,7 +22,7 @@ mongoose
     .then(()=>console.log("MongoDB Connected ..."))
     .catch(err=>console.log(err));
 
-const port = process.env.PORT || 5000 ;
+const port = process.env.PORT || 4001 ;
 
 app.get("/games", (req,res)=>{
     // Request games (full list)
@@ -61,12 +61,16 @@ app.post("/games/:id/reviews",(req,res)=>{
                 number_of_reviews = game["reviews"].length || 0;
                 rating = game["rating"] || 0;
                 total_rating = game["reviews"].reduce((partialSum, review) => partialSum + Number(review.rating),0);
+
+                user = JSON.parse(req.headers("user"));
+
                 game["reviews"].push({
-                    //user_id: req.body.user_id,
-                    user_id: req.header("userId"),
+                    user_id: user.user_id,
+                    username: user.username,
                     rating: Number(req.body.rating),
                     desc: req.body.desc
                 });
+
                 // Updating number of reviews and rating --------- TODO: REVIEW THIS
                 total_rating += Number(req.body.rating);
                 number_of_reviews += 1;
