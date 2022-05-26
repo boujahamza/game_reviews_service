@@ -106,6 +106,8 @@ app.delete("/:game_id/reviews/:user_id", (req, res) => {
 
 app.post("/", (req, res) => {
     // Add game
+    console.log("received request to create game");
+
     let newGame = new Game({
         name: req.body.name,
         image: req.body.image
