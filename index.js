@@ -24,6 +24,12 @@ mongoose
 
 const port = process.env.PORT || 4001;
 
+
+app.get("/count", async (req,res) => {
+    let count = await Game.find().count();
+    res.status(200).send(count.toString());
+});
+
 app.get("/", (req, res) => {
     // Request games (full list)
     console.log("Game list requested");
