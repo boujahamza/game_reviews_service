@@ -37,6 +37,19 @@ app.get("/count/reviews", async (req,res) => {
     res.status(200).send(count.toString());
 });
 
+app.get("/user/:id/reviews", async (req,res) => {
+    let reviews = [];
+    let games = await Game.find();
+    games.forEach((game) => {
+        game.reviews.forEach((review) => {
+            if(review.user_id == req.params.id){
+                reviews.push(review);
+            }
+        })
+    });
+    res.status(200).send(reviews);
+});
+
 app.get("/", (req, res) => {
     // Request games (full list)
     console.log("Game list requested");
