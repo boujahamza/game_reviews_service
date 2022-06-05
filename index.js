@@ -10,6 +10,7 @@ const Game = require('./models/gameModel');
 let app = express();
 
 app.use(bodyParser.json());
+app.use(express.json());
 
 app.use(cors());
 
@@ -25,24 +26,42 @@ mongoose
 const port = process.env.PORT || 4001;
 
 
-app.get("/count/games", async (req,res) => {
+app.post("/feed", async (req, res) => {
+    console.log("recieved request for feed");
+    let following = req.body.following;
+    let games = await Game.find();
+    let reviews = [];
+    if (following) {
+        console.log("following: " + following);
+        games.forEach((game) =>
+            game.reviews.forEach((review) => {
+                if (following.includes(review.user_id)) {
+                    reviews.push(review);
+                }
+            })
+        );
+    }
+    res.status(200).send(JSON.stringify({reviews:reviews}));
+});
+
+app.get("/count/games", async (req, res) => {
     let count = await Game.find().count();
     res.status(200).send(count.toString());
 });
 
-app.get("/count/reviews", async (req,res) => {
+app.get("/count/reviews", async (req, res) => {
     let count = 0;
     let games = await Game.find();
     games.forEach((game) => count += game.reviews.length);
     res.status(200).send(count.toString());
 });
 
-app.get("/user/:id/reviews", async (req,res) => {
+app.get("/user/:id/reviews", async (req, res) => {
     let reviews = [];
     let games = await Game.find();
     games.forEach((game) => {
         game.reviews.forEach((review) => {
-            if(review.user_id == req.params.id){
+            if (review.user_id == req.params.id) {
                 reviews.push(review);
             }
         })
@@ -95,7 +114,8 @@ app.post("/:id/reviews", (req, res) => {
                         user_id: user.user_id,
                         username: user.username,
                         rating: Number(req.body.rating),
-                        desc: req.body.desc
+                        desc: req.body.desc,
+                        timestamp: Date.now()
                     });
 
                     // Updating number of reviews and rating --------- TODO: REVIEW THIS
@@ -104,7 +124,7 @@ app.post("/:id/reviews", (req, res) => {
                     rating = total_rating / number_of_reviews;
                     game["rating"] = rating;
                     // ----------------------
-                    game.save().then(() => {res.json({ success: true });console.log("added review")}).catch(err => { console.log(err); res.json({ success: false }) })
+                    game.save().then(() => { res.json({ success: true }); console.log("added review") }).catch(err => { console.log(err); res.json({ success: false }) })
                 } else {
                     res.send("game not found");
                 }
