@@ -112,10 +112,10 @@ app.post("/:id/reviews", (req, res) => {
 
                     game["reviews"].push({
                         user_id: user.user_id,
-                        username: user.username,
                         rating: Number(req.body.rating),
                         desc: req.body.desc,
-                        timestamp: Date.now()
+                        timestamp: Date.now(),
+                        game_id: game._id
                     });
 
                     // Updating number of reviews and rating --------- TODO: REVIEW THIS
