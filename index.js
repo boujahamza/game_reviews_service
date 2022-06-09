@@ -10,6 +10,7 @@ const Game = require('./models/gameModel');
 let app = express();
 
 app.use(bodyParser.json());
+app.use(express.json());
 
 app.use(cors());
 
@@ -19,81 +20,149 @@ const db = require('./config/keys').mongoURI;
 
 mongoose
     .connect(db)
-    .then(()=>console.log("MongoDB Connected ..."))
-    .catch(err=>console.log(err));
+    .then(() => console.log("MongoDB Connected ..."))
+    .catch(err => console.log(err));
 
-const port = process.env.PORT || 5000 ;
+const port = process.env.PORT || 5000;
 
-app.get("/games", (req,res)=>{
+
+app.post("/feed", async (req, res) => {
+    console.log("recieved request for feed");
+    let following = req.body.following;
+    let games = await Game.find();
+    let reviews = [];
+    if (following) {
+        console.log("following: " + following);
+        games.forEach((game) =>
+            game.reviews.forEach((review) => {
+                if (following.includes(review.user_id)) {
+                    reviews.push(review);
+                }
+            })
+        );
+    }
+    res.status(200).send(JSON.stringify({reviews:reviews}));
+});
+
+app.get("/count/games", async (req, res) => {
+    let count = await Game.find().count();
+    res.status(200).send(count.toString());
+});
+
+app.get("/count/reviews", async (req, res) => {
+    let count = 0;
+    let games = await Game.find();
+    games.forEach((game) => count += game.reviews.length);
+    res.status(200).send(count.toString());
+});
+
+app.get("/user/:id/reviews", async (req, res) => {
+    let reviews = [];
+    let games = await Game.find();
+    games.forEach((game) => {
+        game.reviews.forEach((review) => {
+            if (review.user_id == req.params.id) {
+                reviews.push(review);
+            }
+        })
+    });
+    res.status(200).send(reviews);
+});
+
+app.get("/", (req, res) => {
     // Request games (full list)
     console.log("Game list requested");
-    Game.find().then(games => res.json(games)).catch(err=>console.log);
+    Game.find().then(games => res.json(games)).catch(err => console.log);
 });
 
-app.get("/games/:id", (req,res)=>{
+app.get("/:id", (req, res) => {
     // Request game by id
-    console.log("Game with id "+req.params.id+" requested");
+    console.log("Game with id " + req.params.id + " requested");
     Game.findById(req.params.id).then(game => {
-        if(game){
+        if (game) {
             res.json(game);
-        }else{
+        } else {
             res.send("game not found");
         }
-    }).catch(err=>console.log(err));
+    }).catch(err => console.log(err));
 });
 
-app.get("/games/:id/reviews",(req,res)=>{
+app.get("/:id/reviews", (req, res) => {
     // Get reviews of game
     Game.findById(req.params.id).then(game => {
-        if(game){
+        if (game) {
             res.send(game["reviews"]);
-        }else{
+        } else {
             res.send("game not found");
         }
-    }).catch(err=>console.log(err));
+    }).catch(err => console.log(err));
 })
 
-app.post("/games/:id/reviews",(req,res)=>{
+app.post("/:id/reviews", (req, res) => {
     // Add review to game
-    if(Number(req.body.rating) <= 5 && Number(req.body.rating) >= 0) {
-        Game.findById(req.params.id).then(game => {
-            if(game){
-                number_of_reviews = game["reviews"].length || 0;
-                rating = game["rating"] || 0;
-                total_rating = game["reviews"].reduce((partialSum, review) => partialSum + Number(review.rating),0);
-                game["reviews"].push({
-                    //user_id: req.body.user_id,
-                    user_id: req.header("userId"),
-                    rating: Number(req.body.rating),
-                    desc: req.body.desc
-                });
-                // Updating number of reviews and rating --------- TODO: REVIEW THIS
-                total_rating += Number(req.body.rating);
-                number_of_reviews += 1;
-                rating = total_rating/number_of_reviews;
-                game["rating"] = rating;
-                // ----------------------
-                game.save().then(()=>res.json({success:true})).catch(err=>{console.log(err);res.json({success:false})})
-            }else{
-                res.send("game not found");
-            }
-        }).catch(err=>console.log(err));
-    }else{
-        res.json({success: false, message: "rating out of bounds"})
-    }  
+    try {
+        if (Number(req.body.rating) <= 5 && Number(req.body.rating) >= 0) {
+            Game.findById(req.params.id).then(game => {
+                if (game) {
+                    number_of_reviews = game["reviews"].length || 0;
+                    rating = game["rating"] || 0;
+                    total_rating = game["reviews"].reduce((partialSum, review) => partialSum + Number(review.rating), 0);
+
+                    user = JSON.parse(req.headers["user"]);
+
+                    game["reviews"].push({
+                        user_id: user.user_id,
+                        rating: Number(req.body.rating),
+                        desc: req.body.desc,
+                        timestamp: Date.now(),
+                        game_id: game._id
+                    });
+
+                    // Updating number of reviews and rating --------- TODO: REVIEW THIS
+                    total_rating += Number(req.body.rating);
+                    number_of_reviews += 1;
+                    rating = total_rating / number_of_reviews;
+                    game["rating"] = rating;
+                    // ----------------------
+                    game.save().then(() => { res.json({ success: true }); console.log("added review") }).catch(err => { console.log(err); res.json({ success: false }) })
+                } else {
+                    res.send("game not found");
+                }
+            }).catch(err => console.log(err));
+        } else {
+            res.json({ success: false, message: "rating out of bounds" })
+        }
+    } catch {
+        error => {
+            console.log(error);
+            res.status(500).send("unexpected error");
+        }
+    }
 })
 
-app.post("/games", (req,res)=>{
+app.delete("/:game_id/reviews/:user_id", (req, res) => {
+    Game.findById(req.params.id).then(game => {
+        if (game) {
+            //TODO: IMPLEMENT REVIEW DELETION AND ADD TO GATEWAY PATHS
+        } else {
+            res.send("game not found");
+        }
+    })
+})
+
+app.post("/", (req, res) => {
     // Add game
+    console.log("received request to create game");
+
     let newGame = new Game({
         name: req.body.name,
         image: req.body.image
     });
 
-    newGame.save().then((saved)=>{
-        res.json({success:true});
-        const file = fs.createWriteStream("game_poster/poster_"+saved._id+".jpg");
-        const request = http.get(saved.image, function(response) {
+    newGame.save().then((saved) => {
+        res.json({ success: true });
+        const file = fs.createWriteStream("game_poster/poster_" + saved._id + ".jpg");
+        const request = http.get(saved.image, function (response) {
             response.pipe(file);
 
             file.on("finish", () => {
@@ -101,12 +170,12 @@ app.post("/games", (req,res)=>{
                 console.log("Retrieved poster for new game");
             });
         });
-    }).catch(err=>{console.log(err);res.json({success:false})})
+    }).catch(err => { console.log(err); res.json({ success: false }) })
 });
 
-app.delete("/games/:id", (req,res)=>{
+app.delete("/:id", (req, res) => {
     // Delete game
-    Game.deleteOne({_id: req.params.id}).then(()=>res.json({success:true})).catch(res.json({success:false}))
+    Game.deleteOne({ _id: req.params.id }).then(() => res.json({ success: true })).catch(res.json({ success: false }))
 })
 
 app.listen(port, () => console.log(`Server started on port ${port}`));
